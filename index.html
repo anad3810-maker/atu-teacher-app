@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق التدريسي - جامعة الفرات الأوسط التقنية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d5c3a">
+    <style>
+        body { font-family: 'Tajawal', sans-serif; background-color: #0f172a; }
+        .header-pattern {
+            background-color: #0d5c3a;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.15) 1.5px, transparent 1.5px);
+            background-size: 10px 10px;
+        }
+
+        #splashScreen {
+            position: fixed;
+            inset: 0;
+            background: #030b08;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            overflow: hidden;
+            transition: opacity 1.2s ease-in-out, visibility 1.2s;
+        }
+
+        .splash-logo {
+            width: 280px;
+            height: 280px;
+            border-radius: 50%;
+            object-fit: cover;
+            animation: fadeInLogo 1.5s ease-out forwards;
+        }
+
+        @keyframes fadeInLogo {
+            0% { opacity: 0; transform: scale(0.92); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .fade-out-screen {
+            opacity: 0;
+            visibility: hidden;
+        }
+    </style>
+</head>
+<body class="p-3 flex justify-center items-center min-h-screen">
+
+    <!-- 🌟 شاشة الترحيب بالشعار -->
+    <div id="splashScreen">
+        <img id="splashLogoImg" class="splash-logo" alt="شعار">
+    </div>
+
+    <div class="bg-white w-full max-w-sm rounded-[35px] p-5 shadow-2xl border-4 border-slate-700 min-h-[680px] flex flex-col justify-between">
+        <div>
+            <!-- Header -->
+            <div class="header-pattern text-white p-3 rounded-2xl text-xs flex justify-between items-center mb-4 shadow border border-emerald-600">
+                <div class="flex items-center gap-2">
+                    <img id="headerLogoImg" class="h-8 w-8 object-cover bg-white rounded-full p-0.5 shadow" alt="شعار">
+                    <div>
+                        <span class="font-bold text-amber-300 block text-[11px]">بوليتكنيك نجف</span>
+                        <span class="text-[8px] text-slate-200 block">بوابة التدريسيين الرسمية</span>
+                    </div>
+                </div>
+                <span id="syncBadge" class="bg-emerald-700 text-white px-2 py-0.5 rounded text-[9px] font-bold">متصل بالسحابة</span>
+            </div>
+
+            <!-- LOGIN SCREEN -->
+            <div id="loginScreen" class="p-1 space-y-4 my-auto">
+                <div class="text-center space-y-2 py-1">
+                    <div class="flex justify-center">
+                        <div class="bg-slate-50 p-2 rounded-full border-2 border-slate-200 shadow-sm inline-block">
+                            <img id="loginLogoImg" class="h-24 w-24 object-cover rounded-full mx-auto shadow-inner border-2 border-amber-400" alt="شعار">
+                        </div>
+                    </div>
+                    <div class="space-y-0.5">
+                        <h3 class="font-extrabold text-slate-900 text-xs">تسجيل دخول التدريسي</h3>
+                    </div>
+                </div>
+                <div class="space-y-3 text-xs pt-1">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">البريد الجامعي:</label>
+                        <input type="email" id="lEmail" placeholder="name@atu.edu.iq" class="w-full p-2.5 border rounded-xl font-bold bg-slate-50 focus:bg-white transition">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">كلمة المرور:</label>
+                        <input type="password" id="lPass" placeholder="••••••••" class="w-full p-2.5 border rounded-xl font-bold bg-slate-50 focus:bg-white transition">
+                    </div>
+                    <button onclick="login()" class="w-full bg-emerald-800 hover:bg-emerald-900 text-white p-2.5 rounded-xl font-bold shadow transition">تسجيل الدخول</button>
+                </div>
+            </div>
+
+            <!-- DASHBOARD SCREEN -->
+            <div id="dashboardScreen" class="hidden space-y-3 text-xs">
+                <div class="bg-slate-100 p-2.5 rounded-xl border flex justify-between items-center">
+                    <div>
+                        <p class="font-bold text-slate-800" id="tNameDisp">اسم التدريسي</p>
+                        <span id="currentWeekDisp" class="text-[10px] text-emerald-800 font-extrabold"></span>
+                    </div>
+                    <button onclick="logout()" class="text-[10px] bg-red-100 text-red-700 px-2 py-1 rounded font-bold">خروج</button>
+                </div>
+
+                <div class="p-2.5 bg-emerald-50 rounded-xl border space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="font-bold text-slate-700">اختر المحاضرة:</label>
+                        <span id="currentDayBadge" class="bg-emerald-800 text-amber-300 px-2 py-0.5 rounded font-bold text-[10px]"></span>
+                    </div>
+                    <select id="lecSelect" onchange="onLectureChange()" class="w-full p-2 border rounded-lg bg-white font-bold text-emerald-900"></select>
+
+                    <!-- 🌟 اختيار تاريخ المحاضرة -->
+                    <div class="pt-1">
+                        <label class="font-bold text-slate-700 block mb-1">📅 تاريخ أخذ المحاضرة:</label>
+                        <input type="date" id="lectureDateInput" onchange="renderStudents()" class="w-full p-2 border rounded-lg bg-white font-bold text-slate-800 font-mono shadow-sm">
+                    </div>
+                </div>
+
+                <div id="subGroupsContainer" class="hidden space-y-1.5">
+                    <label class="font-bold text-slate-700 block">اختر الشعبة الفرعية:</label>
+                    <div class="grid grid-cols-2 gap-2" id="subGroupsButtons"></div>
+                </div>
+
+                <!-- تنبيه العطل الرسمية إن وجدت -->
+                <div id="holidayBanner" class="hidden p-2.5 bg-red-100 border border-red-300 text-red-900 rounded-xl text-center font-bold"></div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-bold text-slate-700">قائمة الطلاب (<span id="activeSubGroupTitle">-</span>): (<span id="stCount">0</span>)</h4>
+                    </div>
+                    <div id="stList" class="space-y-2 max-h-[160px] overflow-y-auto pr-1"></div>
+                </div>
+
+                <div id="lockNotice" class="hidden p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-center font-bold"></div>
+            </div>
+        </div>
+
+        <div id="submitWrap" class="hidden pt-3 border-t">
+            <button id="submitBtn" onclick="submitAttendance()" class="w-full bg-emerald-800 hover:bg-emerald-900 text-white py-2.5 rounded-xl font-bold shadow text-xs">
+                🚀 إرسال وإغلاق محاضرة هذا الأسبوع
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const logoUrl = "https://i.imgur.com/iyX6S1h.png";
+
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('splashLogoImg').src = logoUrl;
+            document.getElementById('headerLogoImg').src = logoUrl;
+            document.getElementById('loginLogoImg').src = logoUrl;
+
+            // تعبئة خيار التاريخ تلقائياً بتاريخ اليوم
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('lectureDateInput').value = today;
+
+            setTimeout(() => {
+                const splash = document.getElementById('splashScreen');
+                if(splash) {
+                    splash.classList.add('fade-out-screen');
+                    setTimeout(() => splash.remove(), 1200);
+                }
+            }, 3000);
+        });
+
+        const firebaseConfig = { databaseURL: "https://atu-attendance-default-rtdb.firebaseio.com" };
+        firebase.initializeApp(firebaseConfig);
+        const dbRef = firebase.database().ref('atu_system_data');
+
+        let db = { teachers: {}, students: [], holidays: {}, currentAcademicWeek: 1 };
+        let activeKey = "";
+        let selectedSubGroup = "";
+        let currentDisplayedStudents = []; // 🌟 مصفوفة مؤقتة لتخزين الطلاب المعروضين حالياً
+
+        function safeKey(email) {
+            return email.toLowerCase().replace(/\./g, '_dot_').replace(/@/g, '_at_').trim();
+        }
+
+        function getLogHoursBySubject(subjectName) {
+            if (!subjectName) return 2;
+            let sub = subjectName.trim();
+            if (sub === "علم المستحضرات التجميلية" || sub === "علم الامراض الجلدية") {
+                return 4;
+            }
+            return 2;
+        }
+
+        function getCurrentAcademicWeek() {
+            let weekNum = db.currentAcademicWeek || 1;
+            return `الأسبوع الدراسي ${weekNum}`;
+        }
+
+        dbRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if(data) db = data;
+            if(activeKey) {
+                document.getElementById('currentWeekDisp').innerText = `📅 ${getCurrentAcademicWeek()}`;
+                renderStudents();
+            }
+        });
+
+        function login() {
+            const rawEmail = document.getElementById('lEmail').value.trim();
+            const pass = document.getElementById('lPass').value.trim();
+
+            if(!rawEmail || !pass) {
+                alert('يرجى كتابة البريد الجامعي وكلمة المرور');
+                return;
+            }
+
+            const key = safeKey(rawEmail);
+            if(!db.teachers) db.teachers = {};
+
+            let teacherObj = db.teachers[key] || db.teachers[rawEmail.toLowerCase()];
+
+            if(!teacherObj) {
+                for(let k in db.teachers) {
+                    if(db.teachers[k].email && db.teachers[k].email.toLowerCase() === rawEmail.toLowerCase()) {
+                        teacherObj = db.teachers[k];
+                        activeKey = k;
+                        break;
+                    }
+                }
+            } else {
+                activeKey = key;
+            }
+
+            if(teacherObj && teacherObj.password === pass) {
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('dashboardScreen').classList.remove('hidden');
+                document.getElementById('submitWrap').classList.remove('hidden');
+                document.getElementById('tNameDisp').innerText = teacherObj.name;
+                document.getElementById('currentWeekDisp').innerText = `📅 ${getCurrentAcademicWeek()}`;
+                
+                populateLecturesDropdown();
+            } else {
+                alert('البيانات غير صحيحة أو لم يقم المشرف بإنشاء حسابك بعد');
+            }
+        }
+
+        function populateLecturesDropdown() {
+            const teacherObj = db.teachers[activeKey];
+            if(!teacherObj || !teacherObj.lectures || teacherObj.lectures.length === 0) {
+                document.getElementById('lecSelect').innerHTML = `<option value="">لا توجد محاضرات مسندة لك حالياً</option>`;
+                return;
+            }
+
+            let sel = document.getElementById('lecSelect');
+            sel.innerHTML = teacherObj.lectures.map((l, i) => `
+                <option value="${i}">[${l.day || 'يوم'}] ${l.subject} (شعبة ${l.group} - ${l.study || 'صباحي'}) - ${l.time}</option>
+            `).join('');
+            
+            onLectureChange();
+        }
+
+        function onLectureChange() {
+            const lecIdx = document.getElementById('lecSelect').value;
+            const teacherObj = db.teachers[activeKey];
+            if(!teacherObj || !teacherObj.lectures || !teacherObj.lectures[lecIdx]) return;
+            const lec = teacherObj.lectures[lecIdx];
+
+            let subCont = document.getElementById('subGroupsContainer');
+            let subBtns = document.getElementById('subGroupsButtons');
+
+            if(['A', 'B', 'C', 'D'].includes(lec.group)) {
+                subCont.classList.remove('hidden');
+                let s1 = lec.group + '1';
+                let s2 = lec.group + '2';
+                selectedSubGroup = s1;
+                subBtns.innerHTML = `
+                    <button onclick="selectSubGroup('${s1}')" id="btn_${s1}" class="p-2 rounded-xl font-bold border transition ${selectedSubGroup === s1 ? 'bg-emerald-800 text-white shadow' : 'bg-slate-100 text-slate-800'}">شعبة ${s1}</button>
+                    <button onclick="selectSubGroup('${s2}')" id="btn_${s2}" class="p-2 rounded-xl font-bold border transition ${selectedSubGroup === s2 ? 'bg-emerald-800 text-white shadow' : 'bg-slate-100 text-slate-800'}">شعبة ${s2}</button>
+                `;
+            } else {
+                subCont.classList.add('hidden');
+                selectedSubGroup = lec.group;
+            }
+            renderStudents();
+        }
+
+        function selectSubGroup(subGrp) {
+            selectedSubGroup = subGrp;
+            let lec = db.teachers[activeKey].lectures[document.getElementById('lecSelect').value];
+            let s1 = lec.group + '1';
+            let s2 = lec.group + '2';
+            
+            let b1 = document.getElementById(`btn_${s1}`);
+            let b2 = document.getElementById(`btn_${s2}`);
+            if(b1) b1.className = selectedSubGroup === s1 ? "p-2 rounded-xl font-bold border transition bg-emerald-800 text-white shadow" : "p-2 rounded-xl font-bold border transition bg-slate-100 text-slate-800";
+            if(b2) b2.className = selectedSubGroup === s2 ? "p-2 rounded-xl font-bold border transition bg-emerald-800 text-white shadow" : "p-2 rounded-xl font-bold border transition bg-slate-100 text-slate-800";
+            
+            renderStudents();
+        }
+
+        function logout() {
+            activeKey = "";
+            document.getElementById('dashboardScreen').classList.add('hidden');
+            document.getElementById('submitWrap').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('lEmail').value = "";
+            document.getElementById('lPass').value = "";
+        }
+
+        function renderStudents() {
+            if(!activeKey) return;
+            const lecIdx = document.getElementById('lecSelect').value;
+            const teacherObj = db.teachers[activeKey];
+            if(!teacherObj || !teacherObj.lectures || !teacherObj.lectures[lecIdx]) return;
+            
+            const lec = teacherObj.lectures[lecIdx];
+            const lecStudy = lec.study || 'صباحي';
+
+            document.getElementById('currentDayBadge').innerText = `${lec.day || 'جدول'} (${lecStudy})`;
+            document.getElementById('activeSubGroupTitle').innerText = `${selectedSubGroup} - ${lecStudy}`;
+
+            if(!db.students) db.students = [];
+            
+            // 🌟 حفظ القائمة المعروضة حالياً في المتغير العام لربطها بالفهرس مباشرة
+            currentDisplayedStudents = db.students.filter(s => s.group === selectedSubGroup && (s.study || 'صباحي') === lecStudy);
+            document.getElementById('stCount').innerText = currentDisplayedStudents.length;
+
+            let currentWeek = getCurrentAcademicWeek();
+            let submissionKey = `${currentWeek}_${selectedSubGroup}`;
+
+            if(!lec.weeklySubmissions) lec.weeklySubmissions = {};
+            let isLockedThisWeek = lec.weeklySubmissions[submissionKey] === true;
+
+            let chosenDate = document.getElementById('lectureDateInput').value;
+            let holidayBanner = document.getElementById('holidayBanner');
+            let isHoliday = false;
+
+            if(db.holidays && db.holidays[chosenDate]) {
+                let hol = db.holidays[chosenDate];
+                if(hol.group === 'ALL' || hol.group === lec.group || selectedSubGroup.startsWith(hol.group)) {
+                    isHoliday = true;
+                    holidayBanner.classList.remove('hidden');
+                    holidayBanner.innerHTML = `🏖️ هذا اليوم (${chosenDate}) عطلة رسمية:<br><span class="text-xs font-normal">${hol.reason}</span>`;
+                } else {
+                    holidayBanner.classList.add('hidden');
+                }
+            } else {
+                holidayBanner.classList.add('hidden');
+            }
+
+            let list = document.getElementById('stList');
+            let submitBtn = document.getElementById('submitBtn');
+            let lockNotice = document.getElementById('lockNotice');
+
+            if(isLockedThisWeek) {
+                submitBtn.classList.add('hidden');
+                lockNotice.classList.remove('hidden');
+                lockNotice.innerHTML = `🔒 تم إرسال شعبة (${selectedSubGroup}) لـ (${currentWeek}).<br>⏳ يمكنك فتحها من لوحة الإشراف أو اختيار شعبة أخرى.`;
+            } else if(isHoliday) {
+                submitBtn.classList.add('hidden');
+                lockNotice.classList.add('hidden');
+            } else {
+                submitBtn.classList.remove('hidden');
+                lockNotice.classList.add('hidden');
+            }
+
+            list.innerHTML = currentDisplayedStudents.map((s, index) => {
+                if(s.tempStatus === undefined) s.tempStatus = 'حاضر';
+                
+                let statusColor = "bg-emerald-100 text-emerald-800";
+                if(s.tempStatus === 'غائب') statusColor = "bg-red-600 text-white";
+                if(s.tempStatus === 'مجاز') statusColor = "bg-amber-500 text-white";
+
+                return `
+                    <div class="flex justify-between items-center p-2 bg-slate-50 rounded-xl border shadow-sm">
+                        <span class="font-bold">${s.name}</span>
+                        <div class="flex gap-1">
+                            <!-- 🌟 التغيير هنا: الاعتماد على الفهرس المباشر للمصفوفة index لمنع مشاكل النصوص والرموز -->
+                            <button ${(isLockedThisWeek || isHoliday) ? 'disabled' : ''} onclick="cycleStStatusByIndex(${index})" class="text-xs px-2.5 py-1 rounded-lg font-bold ${statusColor}">
+                                ${s.tempStatus}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('') || `<p class="text-center text-slate-400 p-3">لا توجد طلاب مسجلين في هذه الشعبة لهذا الدوام (${lecStudy})</p>`;
+        }
+
+        // 🌟 دالة تبديل الحالة المضمونة 100% باستخدام الفهرس
+        function cycleStStatusByIndex(index) {
+            let s = currentDisplayedStudents[index];
+            if(s) {
+                if(s.tempStatus === 'حاضر') s.tempStatus = 'غائب';
+                else if(s.tempStatus === 'غائب') s.tempStatus = 'مجاز';
+                else s.tempStatus = 'حاضر';
+                renderStudents();
+            }
+        }
+
+        function submitAttendance() {
+            const lecIdx = document.getElementById('lecSelect').value;
+            const teacherObj = db.teachers[activeKey];
+            const lec = teacherObj.lectures[lecIdx];
+            const lecStudy = lec.study || 'صباحي';
+            let currentWeek = getCurrentAcademicWeek();
+            let submissionKey = `${currentWeek}_${selectedSubGroup}`;
+
+            let lessonHours = getLogHoursBySubject(lec.subject);
+            let chosenDate = document.getElementById('lectureDateInput').value || new Date().toISOString().split('T')[0];
+
+            let targetStudents = db.students.filter(s => s.group === selectedSubGroup && (s.study || 'صباحي') === lecStudy);
+
+            targetStudents.forEach(s => {
+                if(!s.attendanceLog) s.attendanceLog = [];
+                if(s.tempStatus === 'غائب') {
+                    s.absenceHours = (s.absenceHours || 0) + lessonHours;
+                    s.status = 'غائب';
+                    s.attendanceLog.push({
+                        date: chosenDate,
+                        day: lec.day || 'محاضرة',
+                        week: currentWeek,
+                        subject: lec.subject,
+                        teacher: teacherObj.name,
+                        time: lec.time,
+                        status: 'ABSENT'
+                    });
+                } else if(s.tempStatus === 'مجاز') {
+                    s.attendanceLog.push({
+                        date: chosenDate,
+                        day: lec.day || 'محاضرة',
+                        week: currentWeek,
+                        subject: lec.subject,
+                        teacher: teacherObj.name,
+                        time: lec.time,
+                        status: 'EXCUSED'
+                    });
+                }
+                s.tempStatus = 'حاضر';
+            });
+
+            if(!lec.weeklySubmissions) lec.weeklySubmissions = {};
+            lec.weeklySubmissions[submissionKey] = true;
+
+            dbRef.set(db).then(() => {
+                alert(`🚀 تم تسجيل غيابات شعبة (${selectedSubGroup}) لمادة (${lec.subject}) بتاريخ (${chosenDate}) وتحديث السحابة بنجاح!`);
+                renderStudents();
+            });
+        }
+    </script>
+</body>
+</html>

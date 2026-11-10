@@ -1,0 +1,21 @@
+{
+  "short_name": "التدريسيين",
+  "name": "تطبيق التدريسي - كلية البوليتكنيك نجف",
+  "icons": [
+    {
+      "src": "splash.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "splash.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#030b08",
+  "theme_color": "#0d5c3a",
+  "display": "standalone",
+  "orientation": "portrait"
+}
