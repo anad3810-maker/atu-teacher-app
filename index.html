@@ -173,18 +173,27 @@
         let db = { teachers: {}, students: [], holidays: {}, currentAcademicWeek: 1 };
         let activeKey = "";
         let selectedSubGroup = "";
-        let currentDisplayedStudents = []; // 🌟 مصفوفة مؤقتة لتخزين الطلاب المعروضين حالياً
+        let currentDisplayedStudents = [];
 
         function safeKey(email) {
             return email.toLowerCase().replace(/\./g, '_dot_').replace(/@/g, '_at_').trim();
         }
 
+        // 🌟 دالة تحديث الساعات مع استثناء مادة العناية بالشعر والأظافر
         function getLogHoursBySubject(subjectName) {
             if (!subjectName) return 2;
             let sub = subjectName.trim();
-            if (sub === "علم المستحضرات التجميلية" || sub === "علم الامراض الجلدية") {
+            
+            // تخصيص مادة العناية بالشعر والأظافر والجلد لتكون 2 ساعة دائماً
+            if (sub.includes("العناية") || sub.includes("الشعر") || sub.includes("الأظافر")) {
+                return 2;
+            }
+            
+            // المواد ذات الـ 4 ساعات
+            if (sub === "علم المستحضرات التجميلية" || sub === "علم الامراض الجلدية" || sub.includes("المستحضرات") || sub.includes("الجلدية")) {
                 return 4;
             }
+            
             return 2;
         }
 
@@ -318,7 +327,6 @@
 
             if(!db.students) db.students = [];
             
-            // 🌟 حفظ القائمة المعروضة حالياً في المتغير العام لربطها بالفهرس مباشرة
             currentDisplayedStudents = db.students.filter(s => s.group === selectedSubGroup && (s.study || 'صباحي') === lecStudy);
             document.getElementById('stCount').innerText = currentDisplayedStudents.length;
 
@@ -372,7 +380,6 @@
                     <div class="flex justify-between items-center p-2 bg-slate-50 rounded-xl border shadow-sm">
                         <span class="font-bold">${s.name}</span>
                         <div class="flex gap-1">
-                            <!-- 🌟 التغيير هنا: الاعتماد على الفهرس المباشر للمصفوفة index لمنع مشاكل النصوص والرموز -->
                             <button ${(isLockedThisWeek || isHoliday) ? 'disabled' : ''} onclick="cycleStStatusByIndex(${index})" class="text-xs px-2.5 py-1 rounded-lg font-bold ${statusColor}">
                                 ${s.tempStatus}
                             </button>
@@ -382,7 +389,6 @@
             }).join('') || `<p class="text-center text-slate-400 p-3">لا توجد طلاب مسجلين في هذه الشعبة لهذا الدوام (${lecStudy})</p>`;
         }
 
-        // 🌟 دالة تبديل الحالة المضمونة 100% باستخدام الفهرس
         function cycleStStatusByIndex(index) {
             let s = currentDisplayedStudents[index];
             if(s) {
