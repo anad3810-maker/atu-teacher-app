@@ -112,10 +112,9 @@
                     </div>
                     <select id="lecSelect" onchange="onLectureChange()" class="w-full p-2 border rounded-lg bg-white font-bold text-emerald-900"></select>
 
-                    <!-- 🌟 اختيار تاريخ المحاضرة -->
                     <div class="pt-1">
                         <label class="font-bold text-slate-700 block mb-1">📅 تاريخ أخذ المحاضرة:</label>
-                        <input type="date" id="lectureDateInput" onchange="renderStudents()" class="w-full p-2 border rounded-lg bg-white font-bold text-slate-800 font-mono shadow-sm">
+                        <input type="date" id="lectureDateInput" onchange="renderStudents(false)" class="w-full p-2 border rounded-lg bg-white font-bold text-slate-800 font-mono shadow-sm">
                     </div>
                 </div>
 
@@ -124,7 +123,6 @@
                     <div class="grid grid-cols-2 gap-2" id="subGroupsButtons"></div>
                 </div>
 
-                <!-- تنبيه العطل الرسمية إن وجدت -->
                 <div id="holidayBanner" class="hidden p-2.5 bg-red-100 border border-red-300 text-red-900 rounded-xl text-center font-bold"></div>
 
                 <div class="space-y-2">
@@ -153,7 +151,6 @@
             document.getElementById('headerLogoImg').src = logoUrl;
             document.getElementById('loginLogoImg').src = logoUrl;
 
-            // تعبئة خيار التاريخ تلقائياً بتاريخ اليوم
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('lectureDateInput').value = today;
 
@@ -174,26 +171,21 @@
         let activeKey = "";
         let selectedSubGroup = "";
         let currentDisplayedStudents = [];
+        let localAttendanceMap = {};
 
         function safeKey(email) {
             return email.toLowerCase().replace(/\./g, '_dot_').replace(/@/g, '_at_').trim();
         }
 
-        // 🌟 دالة تحديث الساعات مع استثناء مادة العناية بالشعر والأظافر
         function getLogHoursBySubject(subjectName) {
             if (!subjectName) return 2;
             let sub = subjectName.trim();
-            
-            // تخصيص مادة العناية بالشعر والأظافر والجلد لتكون 2 ساعة دائماً
             if (sub.includes("العناية") || sub.includes("الشعر") || sub.includes("الأظافر")) {
                 return 2;
             }
-            
-            // المواد ذات الـ 4 ساعات
             if (sub === "علم المستحضرات التجميلية" || sub === "علم الامراض الجلدية" || sub.includes("المستحضرات") || sub.includes("الجلدية")) {
                 return 4;
             }
-            
             return 2;
         }
 
@@ -207,7 +199,7 @@
             if(data) db = data;
             if(activeKey) {
                 document.getElementById('currentWeekDisp').innerText = `📅 ${getCurrentAcademicWeek()}`;
-                renderStudents();
+                renderStudents(false);
             }
         });
 
@@ -287,7 +279,7 @@
                 subCont.classList.add('hidden');
                 selectedSubGroup = lec.group;
             }
-            renderStudents();
+            renderStudents(true);
         }
 
         function selectSubGroup(subGrp) {
@@ -301,11 +293,12 @@
             if(b1) b1.className = selectedSubGroup === s1 ? "p-2 rounded-xl font-bold border transition bg-emerald-800 text-white shadow" : "p-2 rounded-xl font-bold border transition bg-slate-100 text-slate-800";
             if(b2) b2.className = selectedSubGroup === s2 ? "p-2 rounded-xl font-bold border transition bg-emerald-800 text-white shadow" : "p-2 rounded-xl font-bold border transition bg-slate-100 text-slate-800";
             
-            renderStudents();
+            renderStudents(true);
         }
 
         function logout() {
             activeKey = "";
+            localAttendanceMap = {};
             document.getElementById('dashboardScreen').classList.add('hidden');
             document.getElementById('submitWrap').classList.add('hidden');
             document.getElementById('loginScreen').classList.remove('hidden');
@@ -313,7 +306,7 @@
             document.getElementById('lPass').value = "";
         }
 
-        function renderStudents() {
+        function renderStudents(resetLocalMap = false) {
             if(!activeKey) return;
             const lecIdx = document.getElementById('lecSelect').value;
             const teacherObj = db.teachers[activeKey];
@@ -329,6 +322,15 @@
             
             currentDisplayedStudents = db.students.filter(s => s.group === selectedSubGroup && (s.study || 'صباحي') === lecStudy);
             document.getElementById('stCount').innerText = currentDisplayedStudents.length;
+
+            if (resetLocalMap) {
+                localAttendanceMap = {};
+            }
+            currentDisplayedStudents.forEach(s => {
+                if (!localAttendanceMap[s.id]) {
+                    localAttendanceMap[s.id] = 'حاضر';
+                }
+            });
 
             let currentWeek = getCurrentAcademicWeek();
             let submissionKey = `${currentWeek}_${selectedSubGroup}`;
@@ -369,19 +371,19 @@
                 lockNotice.classList.add('hidden');
             }
 
-            list.innerHTML = currentDisplayedStudents.map((s, index) => {
-                if(s.tempStatus === undefined) s.tempStatus = 'حاضر';
+            list.innerHTML = currentDisplayedStudents.map((s) => {
+                let currentStatus = localAttendanceMap[s.id] || 'حاضر';
                 
                 let statusColor = "bg-emerald-100 text-emerald-800";
-                if(s.tempStatus === 'غائب') statusColor = "bg-red-600 text-white";
-                if(s.tempStatus === 'مجاز') statusColor = "bg-amber-500 text-white";
+                if(currentStatus === 'غائب') statusColor = "bg-red-600 text-white";
+                if(currentStatus === 'مجاز') statusColor = "bg-amber-500 text-white";
 
                 return `
                     <div class="flex justify-between items-center p-2 bg-slate-50 rounded-xl border shadow-sm">
                         <span class="font-bold">${s.name}</span>
                         <div class="flex gap-1">
-                            <button ${(isLockedThisWeek || isHoliday) ? 'disabled' : ''} onclick="cycleStStatusByIndex(${index})" class="text-xs px-2.5 py-1 rounded-lg font-bold ${statusColor}">
-                                ${s.tempStatus}
+                            <button ${(isLockedThisWeek || isHoliday) ? 'disabled' : ''} onclick="cycleStStatusById('${s.id}')" class="text-xs px-2.5 py-1 rounded-lg font-bold ${statusColor}">
+                                ${currentStatus}
                             </button>
                         </div>
                     </div>
@@ -389,14 +391,13 @@
             }).join('') || `<p class="text-center text-slate-400 p-3">لا توجد طلاب مسجلين في هذه الشعبة لهذا الدوام (${lecStudy})</p>`;
         }
 
-        function cycleStStatusByIndex(index) {
-            let s = currentDisplayedStudents[index];
-            if(s) {
-                if(s.tempStatus === 'حاضر') s.tempStatus = 'غائب';
-                else if(s.tempStatus === 'غائب') s.tempStatus = 'مجاز';
-                else s.tempStatus = 'حاضر';
-                renderStudents();
-            }
+        function cycleStStatusById(studentId) {
+            let currentStatus = localAttendanceMap[studentId] || 'حاضر';
+            if(currentStatus === 'حاضر') localAttendanceMap[studentId] = 'غائب';
+            else if(currentStatus === 'غائب') localAttendanceMap[studentId] = 'مجاز';
+            else localAttendanceMap[studentId] = 'حاضر';
+            
+            renderStudents(false);
         }
 
         function submitAttendance() {
@@ -410,42 +411,49 @@
             let lessonHours = getLogHoursBySubject(lec.subject);
             let chosenDate = document.getElementById('lectureDateInput').value || new Date().toISOString().split('T')[0];
 
-            let targetStudents = db.students.filter(s => s.group === selectedSubGroup && (s.study || 'صباحي') === lecStudy);
+            dbRef.once('value').then((snapshot) => {
+                let latestDb = snapshot.val() || db;
+                let targetStudents = (latestDb.students || []).filter(s => s.group === selectedSubGroup && (s.study || 'صباحي') === lecStudy);
 
-            targetStudents.forEach(s => {
-                if(!s.attendanceLog) s.attendanceLog = [];
-                if(s.tempStatus === 'غائب') {
-                    s.absenceHours = (s.absenceHours || 0) + lessonHours;
-                    s.status = 'غائب';
-                    s.attendanceLog.push({
-                        date: chosenDate,
-                        day: lec.day || 'محاضرة',
-                        week: currentWeek,
-                        subject: lec.subject,
-                        teacher: teacherObj.name,
-                        time: lec.time,
-                        status: 'ABSENT'
-                    });
-                } else if(s.tempStatus === 'مجاز') {
-                    s.attendanceLog.push({
-                        date: chosenDate,
-                        day: lec.day || 'محاضرة',
-                        week: currentWeek,
-                        subject: lec.subject,
-                        teacher: teacherObj.name,
-                        time: lec.time,
-                        status: 'EXCUSED'
-                    });
+                targetStudents.forEach(s => {
+                    let stStatus = localAttendanceMap[s.id] || 'حاضر';
+                    if(!s.attendanceLog) s.attendanceLog = [];
+                    
+                    if(stStatus === 'غائب') {
+                        s.absenceHours = (s.absenceHours || 0) + lessonHours;
+                        s.status = 'غائب';
+                        s.attendanceLog.push({
+                            date: chosenDate,
+                            day: lec.day || 'محاضرة',
+                            week: currentWeek,
+                            subject: lec.subject,
+                            teacher: teacherObj.name,
+                            time: lec.time,
+                            status: 'ABSENT'
+                        });
+                    } else if(stStatus === 'مجاز') {
+                        s.attendanceLog.push({
+                            date: chosenDate,
+                            day: lec.day || 'محاضرة',
+                            week: currentWeek,
+                            subject: lec.subject,
+                            teacher: teacherObj.name,
+                            time: lec.time,
+                            status: 'EXCUSED'
+                        });
+                    }
+                });
+
+                if(!latestDb.teachers[activeKey].lectures[lecIdx].weeklySubmissions) {
+                    latestDb.teachers[activeKey].lectures[lecIdx].weeklySubmissions = {};
                 }
-                s.tempStatus = 'حاضر';
-            });
+                latestDb.teachers[activeKey].lectures[lecIdx].weeklySubmissions[submissionKey] = true;
 
-            if(!lec.weeklySubmissions) lec.weeklySubmissions = {};
-            lec.weeklySubmissions[submissionKey] = true;
-
-            dbRef.set(db).then(() => {
-                alert(`🚀 تم تسجيل غيابات شعبة (${selectedSubGroup}) لمادة (${lec.subject}) بتاريخ (${chosenDate}) وتحديث السحابة بنجاح!`);
-                renderStudents();
+                dbRef.set(latestDb).then(() => {
+                    alert(`🚀 تم تسجيل غيابات شعبة (${selectedSubGroup}) لمادة (${lec.subject}) بتاريخ (${chosenDate}) بنجاح!`);
+                    localAttendanceMap = {};
+                    renderStudents(true);
+                });
             });
         }
     </script>
