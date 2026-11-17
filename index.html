@@ -85,11 +85,11 @@
                 <div class="space-y-3 text-xs pt-1">
                     <div>
                         <label class="block font-bold text-slate-700 mb-1">البريد الجامعي:</label>
-                        <input type="email" id="lEmail" placeholder="name@atu.edu.iq" class="w-full p-2.5 border rounded-xl font-bold bg-slate-50 focus:bg-white transition">
+                        <input type="email" id="lEmail" placeholder="name@atu.edu.iq" class="w-full p-2.5 border rounded-xl font-bold bg-slate-50 focus:bg-white transition text-left" dir="ltr">
                     </div>
                     <div>
                         <label class="block font-bold text-slate-700 mb-1">كلمة المرور:</label>
-                        <input type="password" id="lPass" placeholder="••••••••" class="w-full p-2.5 border rounded-xl font-bold bg-slate-50 focus:bg-white transition">
+                        <input type="password" id="lPass" placeholder="••••••••" onkeypress="if(event.key === 'Enter') login()" class="w-full p-2.5 border rounded-xl font-bold bg-slate-50 focus:bg-white transition text-left" dir="ltr">
                     </div>
                     <button onclick="login()" class="w-full bg-emerald-800 hover:bg-emerald-900 text-white p-2.5 rounded-xl font-bold shadow transition">تسجيل الدخول</button>
                 </div>
@@ -129,7 +129,7 @@
                     <div class="flex justify-between items-center">
                         <h4 class="font-bold text-slate-700">قائمة الطلاب (<span id="activeSubGroupTitle">-</span>): (<span id="stCount">0</span>)</h4>
                     </div>
-                    <div id="stList" class="space-y-2 max-h-[160px] overflow-y-auto pr-1"></div>
+                    <div id="stList" class="space-y-2 max-h-[210px] overflow-y-auto pr-1"></div>
                 </div>
 
                 <div id="lockNotice" class="hidden p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-center font-bold"></div>
@@ -137,7 +137,7 @@
         </div>
 
         <div id="submitWrap" class="hidden pt-3 border-t">
-            <button id="submitBtn" onclick="submitAttendance()" class="w-full bg-emerald-800 hover:bg-emerald-900 text-white py-2.5 rounded-xl font-bold shadow text-xs">
+            <button id="submitBtn" onclick="submitAttendance()" class="w-full bg-emerald-800 hover:bg-emerald-900 text-white py-2.5 rounded-xl font-bold shadow text-xs transition">
                 🚀 إرسال وإغلاق محاضرة هذا الأسبوع
             </button>
         </div>
@@ -160,7 +160,7 @@
                     splash.classList.add('fade-out-screen');
                     setTimeout(() => splash.remove(), 1200);
                 }
-            }, 3000);
+            }, 2000);
         });
 
         const firebaseConfig = { databaseURL: "https://atu-attendance-default-rtdb.firebaseio.com" };
@@ -172,9 +172,22 @@
         let selectedSubGroup = "";
         let currentDisplayedStudents = [];
         let localAttendanceMap = {};
+        let isSubmitting = false;
+
+        function normalizeArray(val) {
+            if (!val) return [];
+            if (Array.isArray(val)) return val.filter(item => item !== null && item !== undefined);
+            if (typeof val === 'object') {
+                return Object.keys(val)
+                    .sort((a, b) => Number(a) - Number(b))
+                    .map(k => val[k])
+                    .filter(item => item !== null && item !== undefined);
+            }
+            return [];
+        }
 
         function safeKey(email) {
-            return email.toLowerCase().replace(/\./g, '_dot_').replace(/@/g, '_at_').trim();
+            return String(email || '').toLowerCase().replace(/\./g, '_dot_').replace(/@/g, '_at_').trim();
         }
 
         function getLogHoursBySubject(subjectName) {
@@ -183,7 +196,7 @@
             if (sub.includes("العناية") || sub.includes("الشعر") || sub.includes("الأظافر")) {
                 return 2;
             }
-            if (sub === "علم المستحضرات التجميلية" || sub === "علم الامراض الجلدية" || sub.includes("المستحضرات") || sub.includes("الجلدية")) {
+            if (sub.includes("المستحضرات") || sub.includes("الجلدية") || sub.includes("الفطريات")) {
                 return 4;
             }
             return 2;
@@ -196,11 +209,35 @@
 
         dbRef.on('value', (snapshot) => {
             const data = snapshot.val();
-            if(data) db = data;
-            if(activeKey) {
+            if(data) {
+                const rawTeachers = data.teachers || {};
+                const cleanTeachers = {};
+                for (let k in rawTeachers) {
+                    if (rawTeachers[k]) {
+                        cleanTeachers[k] = {
+                            ...rawTeachers[k],
+                            lectures: normalizeArray(rawTeachers[k].lectures)
+                        };
+                    }
+                }
+                db.teachers = cleanTeachers;
+                db.students = normalizeArray(data.students).map(st => ({
+                    ...st,
+                    attendanceLog: normalizeArray(st.attendanceLog)
+                }));
+                db.holidays = data.holidays || {};
+                db.currentAcademicWeek = data.currentAcademicWeek || 1;
+            }
+            document.getElementById('syncBadge').innerText = "متصل بالسحابة ✅";
+            document.getElementById('syncBadge').className = "bg-emerald-700 text-white px-2 py-0.5 rounded text-[9px] font-bold";
+
+            if(activeKey && !isSubmitting) {
                 document.getElementById('currentWeekDisp').innerText = `📅 ${getCurrentAcademicWeek()}`;
                 renderStudents(false);
             }
+        }, () => {
+            document.getElementById('syncBadge').innerText = "غير متصل ❌";
+            document.getElementById('syncBadge').className = "bg-red-700 text-white px-2 py-0.5 rounded text-[9px] font-bold";
         });
 
         function login() {
@@ -244,13 +281,14 @@
 
         function populateLecturesDropdown() {
             const teacherObj = db.teachers[activeKey];
-            if(!teacherObj || !teacherObj.lectures || teacherObj.lectures.length === 0) {
+            const lecs = teacherObj ? normalizeArray(teacherObj.lectures) : [];
+            if(lecs.length === 0) {
                 document.getElementById('lecSelect').innerHTML = `<option value="">لا توجد محاضرات مسندة لك حالياً</option>`;
                 return;
             }
 
             let sel = document.getElementById('lecSelect');
-            sel.innerHTML = teacherObj.lectures.map((l, i) => `
+            sel.innerHTML = lecs.map((l, i) => `
                 <option value="${i}">[${l.day || 'يوم'}] ${l.subject} (شعبة ${l.group} - ${l.study || 'صباحي'}) - ${l.time}</option>
             `).join('');
             
@@ -260,8 +298,9 @@
         function onLectureChange() {
             const lecIdx = document.getElementById('lecSelect').value;
             const teacherObj = db.teachers[activeKey];
-            if(!teacherObj || !teacherObj.lectures || !teacherObj.lectures[lecIdx]) return;
-            const lec = teacherObj.lectures[lecIdx];
+            const lecs = teacherObj ? normalizeArray(teacherObj.lectures) : [];
+            if(!lecs[lecIdx]) return;
+            const lec = lecs[lecIdx];
 
             let subCont = document.getElementById('subGroupsContainer');
             let subBtns = document.getElementById('subGroupsButtons');
@@ -284,7 +323,8 @@
 
         function selectSubGroup(subGrp) {
             selectedSubGroup = subGrp;
-            let lec = db.teachers[activeKey].lectures[document.getElementById('lecSelect').value];
+            const lecs = normalizeArray(db.teachers[activeKey].lectures);
+            let lec = lecs[document.getElementById('lecSelect').value];
             let s1 = lec.group + '1';
             let s2 = lec.group + '2';
             
@@ -299,6 +339,7 @@
         function logout() {
             activeKey = "";
             localAttendanceMap = {};
+            isSubmitting = false;
             document.getElementById('dashboardScreen').classList.add('hidden');
             document.getElementById('submitWrap').classList.add('hidden');
             document.getElementById('loginScreen').classList.remove('hidden');
@@ -310,17 +351,17 @@
             if(!activeKey) return;
             const lecIdx = document.getElementById('lecSelect').value;
             const teacherObj = db.teachers[activeKey];
-            if(!teacherObj || !teacherObj.lectures || !teacherObj.lectures[lecIdx]) return;
+            const lecs = teacherObj ? normalizeArray(teacherObj.lectures) : [];
+            if(!lecs[lecIdx]) return;
             
-            const lec = teacherObj.lectures[lecIdx];
+            const lec = lecs[lecIdx];
             const lecStudy = lec.study || 'صباحي';
 
             document.getElementById('currentDayBadge').innerText = `${lec.day || 'جدول'} (${lecStudy})`;
             document.getElementById('activeSubGroupTitle').innerText = `${selectedSubGroup} - ${lecStudy}`;
 
-            if(!db.students) db.students = [];
-            
-            currentDisplayedStudents = db.students.filter(s => s.group === selectedSubGroup && (s.study || 'صباحي') === lecStudy);
+            const allStudents = normalizeArray(db.students);
+            currentDisplayedStudents = allStudents.filter(s => s.group === selectedSubGroup && (s.study || 'صباحي') === lecStudy);
             document.getElementById('stCount').innerText = currentDisplayedStudents.length;
 
             if (resetLocalMap) {
@@ -382,16 +423,17 @@
                     <div class="flex justify-between items-center p-2 bg-slate-50 rounded-xl border shadow-sm">
                         <span class="font-bold">${s.name}</span>
                         <div class="flex gap-1">
-                            <button ${(isLockedThisWeek || isHoliday) ? 'disabled' : ''} onclick="cycleStStatusById('${s.id}')" class="text-xs px-2.5 py-1 rounded-lg font-bold ${statusColor}">
+                            <button ${(isLockedThisWeek || isHoliday || isSubmitting) ? 'disabled' : ''} onclick="cycleStStatusById('${s.id}')" class="text-xs px-2.5 py-1 rounded-lg font-bold ${statusColor}">
                                 ${currentStatus}
                             </button>
                         </div>
                     </div>
                 `;
-            }).join('') || `<p class="text-center text-slate-400 p-3">لا توجد طلاب مسجلين في هذه الشعبة لهذا الدوام (${lecStudy})</p>`;
+            }).join('') || `<p class="text-center text-slate-400 p-3">لا يوجد طلاب مسجلون في هذه الشعبة لهذا الدوام (${lecStudy})</p>`;
         }
 
         function cycleStStatusById(studentId) {
+            if (isSubmitting) return;
             let currentStatus = localAttendanceMap[studentId] || 'حاضر';
             if(currentStatus === 'حاضر') localAttendanceMap[studentId] = 'غائب';
             else if(currentStatus === 'غائب') localAttendanceMap[studentId] = 'مجاز';
@@ -401,9 +443,13 @@
         }
 
         function submitAttendance() {
-            const lecIdx = document.getElementById('lecSelect').value;
+            if (isSubmitting) return;
+            const lecIdx = parseInt(document.getElementById('lecSelect').value);
             const teacherObj = db.teachers[activeKey];
-            const lec = teacherObj.lectures[lecIdx];
+            const lecs = teacherObj ? normalizeArray(teacherObj.lectures) : [];
+            const lec = lecs[lecIdx];
+            if (!lec) return;
+
             const lecStudy = lec.study || 'صباحي';
             let currentWeek = getCurrentAcademicWeek();
             let submissionKey = `${currentWeek}_${selectedSubGroup}`;
@@ -411,49 +457,83 @@
             let lessonHours = getLogHoursBySubject(lec.subject);
             let chosenDate = document.getElementById('lectureDateInput').value || new Date().toISOString().split('T')[0];
 
-            dbRef.once('value').then((snapshot) => {
-                let latestDb = snapshot.val() || db;
-                let targetStudents = (latestDb.students || []).filter(s => s.group === selectedSubGroup && (s.study || 'صباحي') === lecStudy);
+            const submitBtn = document.getElementById('submitBtn');
+            isSubmitting = true;
+            submitBtn.disabled = true;
+            submitBtn.innerText = "⏳ جاري الحفظ والإغلاق سحابياً...";
 
-                targetStudents.forEach(s => {
-                    let stStatus = localAttendanceMap[s.id] || 'حاضر';
-                    if(!s.attendanceLog) s.attendanceLog = [];
-                    
-                    if(stStatus === 'غائب') {
-                        s.absenceHours = (s.absenceHours || 0) + lessonHours;
-                        s.status = 'غائب';
-                        s.attendanceLog.push({
-                            date: chosenDate,
-                            day: lec.day || 'محاضرة',
-                            week: currentWeek,
-                            subject: lec.subject,
-                            teacher: teacherObj.name,
-                            time: lec.time,
-                            status: 'ABSENT'
-                        });
-                    } else if(stStatus === 'مجاز') {
-                        s.attendanceLog.push({
-                            date: chosenDate,
-                            day: lec.day || 'محاضرة',
-                            week: currentWeek,
-                            subject: lec.subject,
-                            teacher: teacherObj.name,
-                            time: lec.time,
-                            status: 'EXCUSED'
-                        });
+            dbRef.once('value').then((snapshot) => {
+                let latestDb = snapshot.val() || {};
+                let latestTeachers = latestDb.teachers || {};
+                let latestLecs = latestTeachers[activeKey] ? normalizeArray(latestTeachers[activeKey].lectures) : [];
+
+                if (latestLecs[lecIdx] && latestLecs[lecIdx].weeklySubmissions && latestLecs[lecIdx].weeklySubmissions[submissionKey] === true) {
+                    isSubmitting = false;
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = "🚀 إرسال وإغلاق محاضرة هذا الأسبوع";
+                    alert("⚠️ تم إرسال هذه المحاضرة مسبقاً!");
+                    renderStudents(true);
+                    return;
+                }
+
+                let rawStudents = latestDb.students || {};
+                let updates = {};
+
+                Object.keys(rawStudents).forEach(stKey => {
+                    let s = rawStudents[stKey];
+                    if (!s) return;
+                    if (s.group === selectedSubGroup && (s.study || 'صباحي') === lecStudy) {
+                        let stStatus = localAttendanceMap[s.id] || 'حاضر';
+                        let currentLog = normalizeArray(s.attendanceLog);
+
+                        if (stStatus === 'غائب') {
+                            currentLog.push({
+                                date: chosenDate,
+                                day: lec.day || 'محاضرة',
+                                week: currentWeek,
+                                subject: lec.subject,
+                                teacher: teacherObj.name,
+                                time: lec.time,
+                                status: 'ABSENT'
+                            });
+                            updates[`students/${stKey}/absenceHours`] = (s.absenceHours || 0) + lessonHours;
+                            updates[`students/${stKey}/status`] = 'غائب';
+                            updates[`students/${stKey}/attendanceLog`] = currentLog;
+                        } else if (stStatus === 'مجاز') {
+                            currentLog.push({
+                                date: chosenDate,
+                                day: lec.day || 'محاضرة',
+                                week: currentWeek,
+                                subject: lec.subject,
+                                teacher: teacherObj.name,
+                                time: lec.time,
+                                status: 'EXCUSED'
+                            });
+                            updates[`students/${stKey}/attendanceLog`] = currentLog;
+                        }
                     }
                 });
 
-                if(!latestDb.teachers[activeKey].lectures[lecIdx].weeklySubmissions) {
-                    latestDb.teachers[activeKey].lectures[lecIdx].weeklySubmissions = {};
-                }
-                latestDb.teachers[activeKey].lectures[lecIdx].weeklySubmissions[submissionKey] = true;
+                updates[`teachers/${activeKey}/lectures/${lecIdx}/weeklySubmissions/${submissionKey}`] = true;
 
-                dbRef.set(latestDb).then(() => {
+                dbRef.update(updates).then(() => {
+                    isSubmitting = false;
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = "🚀 إرسال وإغلاق محاضرة هذا الأسبوع";
                     alert(`🚀 تم تسجيل غيابات شعبة (${selectedSubGroup}) لمادة (${lec.subject}) بتاريخ (${chosenDate}) بنجاح!`);
                     localAttendanceMap = {};
                     renderStudents(true);
+                }).catch((err) => {
+                    isSubmitting = false;
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = "🚀 إرسال وإغلاق محاضرة هذا الأسبوع";
+                    alert("❌ فشل الإرسال، يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى: " + err.message);
                 });
+            }).catch((err) => {
+                isSubmitting = false;
+                submitBtn.disabled = false;
+                submitBtn.innerText = "🚀 إرسال وإغلاق محاضرة هذا الأسبوع";
+                alert("❌ تعذر الاتصال بالسحابة: " + err.message);
             });
         }
     </script>
