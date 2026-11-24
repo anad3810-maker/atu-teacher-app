@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>تطبيق التدريسي - جامعة الفرات الأوسط التقنية</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -23,7 +26,6 @@
             overflow-x: hidden;
         }
 
-        /* 🌟 الدوائر العائمة بتصميم Neumorphism */
         .bg-circle {
             position: fixed;
             border-radius: 50%;
@@ -43,7 +45,6 @@
             50% { transform: translateY(-18px); }
         }
 
-        /* 🏛️ الهوية الرسمية للكلية */
         .header-pattern {
             background-color: #0d5c3a;
             background-image: radial-gradient(rgba(255, 255, 255, 0.15) 1.5px, transparent 1.5px);
@@ -286,12 +287,10 @@
 </head>
 <body class="p-3 flex justify-center items-center min-h-screen">
 
-    <!-- 🌟 الدوائر العائمة في الخلفية -->
     <div class="bg-circle bg1"></div>
     <div class="bg-circle bg2"></div>
     <div class="bg-circle bg3"></div>
 
-    <!-- 🌟 شاشة الترحيب -->
     <div id="splashScreen">
         <img id="splashLogoImg" src="splash.png" onerror="this.onerror=null; this.src='https://i.imgur.com/iyX6S1h.png';" class="splash-logo" alt="شعار">
     </div>
@@ -304,7 +303,7 @@
                     <img id="headerLogoImg" src="splash.png" onerror="this.onerror=null; this.src='https://i.imgur.com/iyX6S1h.png';" class="h-9 w-9 object-cover bg-white rounded-full p-0.5 shadow" alt="شعار">
                     <div>
                         <span class="font-extrabold text-amber-300 block text-[11px]">بوليتكنيك نجف</span>
-                        <span class="text-[8.5px] text-slate-200 block">بوابة التدريسيين الرسمية</span>
+                        <span class="text-[8.5px] text-slate-200 block">بوابة التدريسيين الرسمية (v2.2)</span>
                     </div>
                 </div>
                 <span id="syncBadge" class="bg-emerald-700 text-white px-2.5 py-0.5 rounded-full text-[9px] font-bold shadow-sm">متصل بالسحابة</span>
@@ -383,8 +382,9 @@
                 <div id="holidayBanner" class="hidden p-2.5 bg-red-100 border border-red-300 text-red-900 rounded-xl text-center font-bold"></div>
 
                 <div class="space-y-2">
-                    <div class="flex justify-between items-center">
-                        <h4 class="font-bold text-slate-700">قائمة الطلاب (<span id="activeSubGroupTitle">-</span>): (<span id="stCount">0</span>)</h4>
+                    <div class="flex justify-between items-center bg-emerald-950/5 px-2.5 py-1.5 rounded-xl border border-emerald-900/10">
+                        <h4 class="font-extrabold text-emerald-950 text-[11px]"><span id="activeSubGroupTitle">-</span></h4>
+                        <span class="bg-emerald-800 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">العدد: <span id="stCount">0</span></span>
                     </div>
                     <div id="stList" class="space-y-2 max-h-[210px] overflow-y-auto pr-1"></div>
                 </div>
@@ -401,6 +401,15 @@
     </div>
 
     <script>
+        // 🧹 تنظيف أي Service Worker قديم قد يحتفظ بالكاش في المتصفح
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (let reg of registrations) {
+                    reg.update();
+                }
+            });
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('lectureDateInput').value = today;
@@ -411,7 +420,7 @@
                     splash.classList.add('fade-out-screen');
                     setTimeout(() => splash.remove(), 1100);
                 }
-            }, 1800);
+            }, 1500);
         });
 
         function togglePasswordVisibility(inputId) {
@@ -447,11 +456,22 @@
         let localAttendanceMap = {};
         let isSubmitting = false;
 
-        // ✅ توحيد المرحلة الدراسية: أي سجل قديم بدون stage يُعامل تلقائياً كـ "المرحلة الثانية"
+        // ✅ القاعدة الصارمة لتوحيد المرحلة: أي سجل قديم بدون stage يُعامل تلقائياً كـ "المرحلة الثانية"
         function normalizeStage(val) {
             const s = String(val || '').trim();
-            if (s === 'المرحلة الأولى' || s === 'الأولى' || s === '1') return 'المرحلة الأولى';
+            if (s === 'المرحلة الأولى' || s === 'الأولى' || s === '1' || s === 'اولى' || s === 'المرحلة الاولى') {
+                return 'المرحلة الأولى';
+            }
             return 'المرحلة الثانية';
+        }
+
+        function normalizeGroup(val) {
+            return String(val || '').trim().toUpperCase();
+        }
+
+        function normalizeStudy(val) {
+            const s = String(val || '').trim();
+            return s === 'مسائي' ? 'مسائي' : 'صباحي';
         }
 
         function normalizeArray(val) {
@@ -485,13 +505,9 @@
         function getAcademicSundayTimestamp(dateObj = new Date()) {
             const d = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
             const day = d.getDay();
-            if (day === 5) {
-                d.setDate(d.getDate() + 2);
-            } else if (day === 6) {
-                d.setDate(d.getDate() + 1);
-            } else {
-                d.setDate(d.getDate() - day);
-            }
+            if (day === 5) d.setDate(d.getDate() + 2);
+            else if (day === 6) d.setDate(d.getDate() + 1);
+            else d.setDate(d.getDate() - day);
             return d.getTime();
         }
 
@@ -521,7 +537,12 @@
                     if (rawTeachers[k]) {
                         cleanTeachers[k] = {
                             ...rawTeachers[k],
-                            lectures: normalizeArray(rawTeachers[k].lectures)
+                            lectures: normalizeArray(rawTeachers[k].lectures).map(l => ({
+                                ...l,
+                                stage: normalizeStage(l.stage),
+                                group: normalizeGroup(l.group),
+                                study: normalizeStudy(l.study)
+                            }))
                         };
                     }
                 }
@@ -529,6 +550,8 @@
                 db.students = normalizeArray(data.students).map(st => ({
                     ...st,
                     stage: normalizeStage(st.stage),
+                    group: normalizeGroup(st.group),
+                    study: normalizeStudy(st.study),
                     attendanceLog: normalizeArray(st.attendanceLog)
                 }));
                 db.holidays = data.holidays || {};
@@ -597,7 +620,7 @@
 
             let sel = document.getElementById('lecSelect');
             sel.innerHTML = lecs.map((l, i) => `
-                <option value="${i}">[${l.day || 'يوم'}] ${l.subject} (${normalizeStage(l.stage)} | شعبة ${l.group} - ${l.study || 'صباحي'}) - ${l.time}</option>
+                <option value="${i}">[${l.day || 'يوم'}] ${l.subject} — (${normalizeStage(l.stage)} | شعبة ${normalizeGroup(l.group)} - ${normalizeStudy(l.study)})</option>
             `).join('');
             
             onLectureChange();
@@ -609,14 +632,15 @@
             const lecs = teacherObj ? normalizeArray(teacherObj.lectures) : [];
             if(!lecs[lecIdx]) return;
             const lec = lecs[lecIdx];
+            const lecGrp = normalizeGroup(lec.group);
 
             let subCont = document.getElementById('subGroupsContainer');
             let subBtns = document.getElementById('subGroupsButtons');
 
-            if(['A', 'B', 'C', 'D'].includes(lec.group)) {
+            if(['A', 'B', 'C', 'D'].includes(lecGrp)) {
                 subCont.classList.remove('hidden');
-                let s1 = lec.group + '1';
-                let s2 = lec.group + '2';
+                let s1 = lecGrp + '1';
+                let s2 = lecGrp + '2';
                 selectedSubGroup = s1;
                 subBtns.innerHTML = `
                     <button onclick="selectSubGroup('${s1}')" id="btn_${s1}" class="p-2 rounded-xl font-bold border transition ${selectedSubGroup === s1 ? 'bg-emerald-800 text-white shadow' : 'bg-white/80 text-slate-800'}">شعبة ${s1}</button>
@@ -624,17 +648,18 @@
                 `;
             } else {
                 subCont.classList.add('hidden');
-                selectedSubGroup = lec.group;
+                selectedSubGroup = lecGrp;
             }
             renderStudents(true);
         }
 
         function selectSubGroup(subGrp) {
-            selectedSubGroup = subGrp;
+            selectedSubGroup = normalizeGroup(subGrp);
             const lecs = normalizeArray(db.teachers[activeKey].lectures);
             let lec = lecs[document.getElementById('lecSelect').value];
-            let s1 = lec.group + '1';
-            let s2 = lec.group + '2';
+            const lecGrp = normalizeGroup(lec.group);
+            let s1 = lecGrp + '1';
+            let s2 = lecGrp + '2';
             
             let b1 = document.getElementById(`btn_${s1}`);
             let b2 = document.getElementById(`btn_${s2}`);
@@ -655,6 +680,14 @@
             document.getElementById('lPass').value = "";
         }
 
+        // ✅ التحقق من حالة الإغلاق مع دعم المفتاح الجديد (بالمرحلة) والقديم للتوافق
+        function isLectureLockedForWeek(lec, currentWeek, stage, subGrp) {
+            if (!lec || !lec.weeklySubmissions) return false;
+            const newKey = `${currentWeek}_${stage}_${subGrp}`;
+            const legacyKey = `${currentWeek}_${subGrp}`;
+            return lec.weeklySubmissions[newKey] === true || (stage === 'المرحلة الثانية' && lec.weeklySubmissions[legacyKey] === true);
+        }
+
         function renderStudents(resetLocalMap = false) {
             if(!activeKey) return;
             const lecIdx = document.getElementById('lecSelect').value;
@@ -664,17 +697,18 @@
             
             const lec = lecs[lecIdx];
             const lecStage = normalizeStage(lec.stage);
-            const lecStudy = lec.study || 'صباحي';
+            const lecStudy = normalizeStudy(lec.study);
+            const targetGroup = normalizeGroup(selectedSubGroup);
 
-            document.getElementById('currentDayBadge').innerText = `${lec.day || 'جدول'} (${lecStage})`;
-            document.getElementById('activeSubGroupTitle').innerText = `${lecStage} | ${selectedSubGroup} - ${lecStudy}`;
+            document.getElementById('currentDayBadge').innerText = `${lec.day || 'جدول'} | ${lecStage}`;
+            document.getElementById('activeSubGroupTitle').innerText = `${lecStage} • شعبة ${targetGroup} (${lecStudy})`;
 
             const allStudents = normalizeArray(db.students);
-            // ✅ مطابقة المرحلة + الشعبة + الدراسة بدقة تامة
+            // ✅ تصفية صارمة: المرحلة + الشعبة + الدراسة (لا يمكن دمج المرحلة الأولى مع الثانية أبداً)
             currentDisplayedStudents = allStudents.filter(s =>
                 normalizeStage(s.stage) === lecStage &&
-                s.group === selectedSubGroup &&
-                (s.study || 'صباحي') === lecStudy
+                normalizeGroup(s.group) === targetGroup &&
+                normalizeStudy(s.study) === lecStudy
             );
             document.getElementById('stCount').innerText = currentDisplayedStudents.length;
 
@@ -688,10 +722,7 @@
             });
 
             let currentWeek = getCurrentAcademicWeek();
-            let submissionKey = `${currentWeek}_${selectedSubGroup}`;
-
-            if(!lec.weeklySubmissions) lec.weeklySubmissions = {};
-            let isLockedThisWeek = lec.weeklySubmissions[submissionKey] === true;
+            let isLockedThisWeek = isLectureLockedForWeek(lec, currentWeek, lecStage, targetGroup);
             let isSystemPaused = db.autoWeekEnabled === false;
 
             let pausedBanner = document.getElementById('systemPausedBanner');
@@ -704,7 +735,7 @@
 
             if(db.holidays && db.holidays[chosenDate]) {
                 let hol = db.holidays[chosenDate];
-                if(hol.group === 'ALL' || hol.group === lec.group || selectedSubGroup.startsWith(hol.group)) {
+                if(hol.group === 'ALL' || hol.group === lec.group || targetGroup.startsWith(hol.group)) {
                     isHoliday = true;
                     holidayBanner.classList.remove('hidden');
                     holidayBanner.innerHTML = `🏖️ هذا اليوم (${chosenDate}) عطلة رسمية:<br><span class="text-xs font-normal">${hol.reason}</span>`;
@@ -725,7 +756,7 @@
             } else if(isLockedThisWeek) {
                 submitBtn.classList.add('hidden');
                 lockNotice.classList.remove('hidden');
-                lockNotice.innerHTML = `🔒 تم إرسال (${lecStage} - شعبة ${selectedSubGroup}) لـ (${currentWeek}).<br>⏳ ستُفتح تلقائياً عند بداية الأسبوع القادم أو من لوحة الإشراف.`;
+                lockNotice.innerHTML = `🔒 تم إرسال (${lecStage} - شعبة ${targetGroup}) لـ (${currentWeek}).<br>⏳ ستُفتح تلقائياً عند بداية الأسبوع القادم أو من لوحة الإشراف.`;
             } else if(isHoliday) {
                 submitBtn.classList.add('hidden');
                 lockNotice.classList.add('hidden');
@@ -743,7 +774,10 @@
 
                 return `
                     <div class="flex justify-between items-center p-2.5 bg-white/85 rounded-xl border border-white shadow-sm transition hover:bg-white">
-                        <span class="font-bold text-slate-800">${s.name}</span>
+                        <div>
+                            <span class="font-bold text-slate-800 block">${s.name}</span>
+                            <span class="text-[9.5px] font-bold text-slate-500">${normalizeStage(s.stage)} • شعبة ${normalizeGroup(s.group)} • ${normalizeStudy(s.study)}</span>
+                        </div>
                         <div class="flex gap-1">
                             <button ${(isLockedThisWeek || isHoliday || isSubmitting || isSystemPaused) ? 'disabled' : ''} onclick="cycleStStatusById('${s.id}')" class="text-xs px-3 py-1 rounded-lg font-bold transition ${statusColor}">
                                 ${currentStatus}
@@ -751,7 +785,7 @@
                         </div>
                     </div>
                 `;
-            }).join('') || `<p class="text-center text-slate-500 font-bold p-3">لا يوجد طلاب مسجلون في (${lecStage} - شعبة ${selectedSubGroup} - ${lecStudy})</p>`;
+            }).join('') || `<p class="text-center text-slate-500 font-bold p-3">لا يوجد طلاب مسجلون في (${lecStage} - شعبة ${targetGroup} - ${lecStudy})</p>`;
         }
 
         function cycleStStatusById(studentId) {
@@ -777,9 +811,10 @@
             if (!lec) return;
 
             const lecStage = normalizeStage(lec.stage);
-            const lecStudy = lec.study || 'صباحي';
+            const lecStudy = normalizeStudy(lec.study);
+            const targetGroup = normalizeGroup(selectedSubGroup);
             let currentWeek = getCurrentAcademicWeek();
-            let submissionKey = `${currentWeek}_${selectedSubGroup}`;
+            let submissionKey = `${currentWeek}_${lecStage}_${targetGroup}`;
 
             let lessonHours = getLogHoursBySubject(lec.subject);
             let chosenDate = document.getElementById('lectureDateInput').value || new Date().toISOString().split('T')[0];
@@ -803,7 +838,7 @@
                 let latestTeachers = latestDb.teachers || {};
                 let latestLecs = latestTeachers[activeKey] ? normalizeArray(latestTeachers[activeKey].lectures) : [];
 
-                if (latestLecs[lecIdx] && latestLecs[lecIdx].weeklySubmissions && latestLecs[lecIdx].weeklySubmissions[submissionKey] === true) {
+                if (latestLecs[lecIdx] && isLectureLockedForWeek(latestLecs[lecIdx], currentWeek, lecStage, targetGroup)) {
                     isSubmitting = false;
                     submitBtn.disabled = false;
                     submitBtn.innerText = "🚀 إرسال وإغلاق محاضرة هذا الأسبوع";
@@ -818,8 +853,12 @@
                 Object.keys(rawStudents).forEach(stKey => {
                     let s = rawStudents[stKey];
                     if (!s) return;
-                    // ✅ تحديث غيابات طلاب المرحلة المطابقة للمحاضرة فقط
-                    if (normalizeStage(s.stage) === lecStage && s.group === selectedSubGroup && (s.study || 'صباحي') === lecStudy) {
+                    // ✅ تحديث غيابات طلاب المرحلة + الشعبة + الدراسة المطابقة حصراً
+                    if (
+                        normalizeStage(s.stage) === lecStage &&
+                        normalizeGroup(s.group) === targetGroup &&
+                        normalizeStudy(s.study) === lecStudy
+                    ) {
                         let stStatus = localAttendanceMap[s.id] || 'حاضر';
                         let currentLog = normalizeArray(s.attendanceLog);
 
@@ -829,6 +868,7 @@
                                 day: lec.day || 'محاضرة',
                                 week: currentWeek,
                                 subject: lec.subject,
+                                stage: lecStage,
                                 teacher: teacherObj.name,
                                 time: lec.time,
                                 status: 'ABSENT'
@@ -842,6 +882,7 @@
                                 day: lec.day || 'محاضرة',
                                 week: currentWeek,
                                 subject: lec.subject,
+                                stage: lecStage,
                                 teacher: teacherObj.name,
                                 time: lec.time,
                                 status: 'EXCUSED'
@@ -857,7 +898,7 @@
                     isSubmitting = false;
                     submitBtn.disabled = false;
                     submitBtn.innerText = "🚀 إرسال وإغلاق محاضرة هذا الأسبوع";
-                    alert(`🚀 تم تسجيل غيابات (${lecStage} - شعبة ${selectedSubGroup}) لمادة (${lec.subject}) بتاريخ (${chosenDate}) بنجاح!`);
+                    alert(`🚀 تم تسجيل غيابات (${lecStage} - شعبة ${targetGroup}) لمادة (${lec.subject}) بتاريخ (${chosenDate}) بنجاح!`);
                     localAttendanceMap = {};
                     renderStudents(true);
                 }).catch((err) => {
